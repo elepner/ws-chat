@@ -1,22 +1,39 @@
-import { Effect } from "effect";
-import { WebSocketServer } from "ws";
-export const hello = Effect.gen(function* () {
-  yield* Effect.log("Hello, World!");
-  return "Hello, World!";
-});
-
+import { WebSocketServer, WebSocket } from "ws";
 const wss = new WebSocketServer({ port: 8080 });
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  wss.on("connection", function connection(ws) {
-    ws.on("error", console.error);
+let counter = 0;
+const connections: Record<string, WebSocket> = {};
 
-    ws.on("message", function message(data: string) {
-      console.log("received: %s", data);
-    });
+wss.on("connection", (ws) => {
+  const connectionId = `${counter++}`;
+  connections[connectionId] = ws;
 
-    ws.send("something");
+  ws.on("error", console.error);
+
+  ws.on("message", function message(data: string) {
+    console.log(`received ${connectionId}: ${data}`);
+    Object.entries(connections)
+      .filter(([key]) => key !== connectionId)
+      .forEach(([k, v]) => v.send(data));
   });
 
-  Effect.runPromise(hello);
-}
+  ws.send("something");
+
+  ws.once("close", () => {
+    delete connections[connectionId];
+  });
+});
+
+process.on("SIGINT", () => {
+  console.log("Sig int");
+
+  Object.values(connections).forEach((x) => x.terminate());
+  process.exit(0);
+});
+
+process.on("SIGTERM", () => {
+  console.log(`Sig term need to disconnect ${Object.keys(connections).length}`);
+  Object.values(connections).forEach((x) => x.terminate());
+  wss.close();
+  process.exit(0);
+});

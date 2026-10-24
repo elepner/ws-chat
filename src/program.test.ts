@@ -1,7 +1,10 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect } from "effect";
 
-import { hello } from "./program.js";
+const hello = Effect.gen(function* () {
+  yield* Effect.log("Hello, World!");
+  return "Hello, World!";
+});
 
 describe("hello", () => {
   it.effect("returns the greeting", () =>

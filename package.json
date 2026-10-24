@@ -9,7 +9,8 @@
     "format": "vp fmt .",
     "format:check": "vp fmt --check .",
     "prepare": "vp config",
-    "dev": "vpx --watch src/program.ts"
+    "dev": "vpx --watch src/program.ts",
+    "clients": "tmux new-session -d -s wschat -n clients 'websocat -E ws://localhost:8080' \\; split-window -h 'websocat -E ws://localhost:8080' \\; attach"
   },
   "dependencies": {
     "effect": "^4.0.6",
