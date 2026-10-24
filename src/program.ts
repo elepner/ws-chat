@@ -1,4 +1,4 @@
-import { Effect, Layer, ManagedRuntime, Queue } from "effect";
+import { Effect, Layer, ManagedRuntime, Queue, Stream } from "effect";
 import { WebSocketServer, WebSocket } from "ws";
 const wss = new WebSocketServer({ port: 8080 });
 
@@ -8,19 +8,28 @@ const connections: Record<string, WebSocket> = {};
 function makeConnection(id: string, ws: WebSocket) {
   return Effect.gen(function* () {
     yield* Effect.log("Establishing connection...");
-    const msgHandler = (data: string) => {
-      console.log(`Data arrived: ${data}`);
-    };
-    ws.on("message", msgHandler);
-    yield* Effect.addFinalizer(() =>
-      Effect.gen(function* () {
-        yield* Effect.log("Closing connection");
-        yield* Effect.sync(() => ws.off("message", msgHandler));
-      }),
-    );
-    yield* Effect.callback<void>((resume) => {
-      ws.once("close", () => resume(Effect.void));
+
+    const messages = Stream.callback<string>((queue) => {
+      const msgHandler = (msg: string) => {
+        Queue.offerUnsafe(queue, msg);
+      };
+      const closeHandler = () => Queue.endUnsafe(queue);
+      ws.on("message", msgHandler);
+      ws.once("close", closeHandler);
+
+      return Effect.addFinalizer(() =>
+        Effect.gen(function* () {
+          yield* Effect.log("Closing connection");
+          yield* Effect.sync(() => {
+            ws.off("message", msgHandler);
+            ws.off("close", closeHandler);
+          });
+        }),
+      );
     });
+    yield* Stream.runForEach(messages, (data) =>
+      Effect.log(`Data arrived: ${data}`),
+    );
   }).pipe(Effect.scoped, Effect.annotateLogs("connectionId", id));
 }
 
