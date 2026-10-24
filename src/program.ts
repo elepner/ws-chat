@@ -1,12 +1,13 @@
-import { Effect } from "effect";
+import { Effect, Layer } from "effect";
 import { WebSocketServer } from "ws";
 
+import { ConnectionManagerLive } from "./connection-manager";
 import { makeHub } from "./hub";
 const wss = new WebSocketServer({ port: 8080 });
 
-const hub = makeHub(wss).pipe(Effect.scoped);
+const HubLive = makeHub(wss).pipe(Layer.provide(ConnectionManagerLive));
 
-const fiber = Effect.runFork(hub);
+const fiber = Effect.runFork(Layer.launch(HubLive));
 
 ["SIGINT", "SIGTERM"].forEach((signal) => {
   process.on(signal, () => {

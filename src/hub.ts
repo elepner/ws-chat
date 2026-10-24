@@ -1,37 +1,51 @@
-import { Effect, Queue, Ref } from "effect";
+import { Effect, Layer, Queue, Stream } from "effect";
 import { WebSocketServer, WebSocket } from "ws";
 
 import { Connection, makeConnectionLive } from "./connection";
+import { ConnectionManager } from "./connection-manager";
 
 export function makeHub(wss: WebSocketServer) {
-  return Effect.gen(function* () {
-    let counter = 0;
-    const connectionHandler = (ws: WebSocket) => {
-      const id = `${counter++}`;
+  return Layer.effectDiscard(
+    Effect.gen(function* () {
+      const manager = yield* ConnectionManager;
+      let counter = 0;
 
-      const program = Effect.gen(function* () {
-        const con = yield* Connection;
+      const connectionHandler = (ws: WebSocket) => {
+        const id = `${counter++}`;
 
-        yield* Effect.gen(function* () {
-          const msg = yield* Queue.take(con.inbox);
-          yield* Effect.log(`Data arrived: ${msg}`);
-        }).pipe(Effect.forever);
-      }).pipe(
-        Effect.annotateLogs("connectionId", id),
-        Effect.provide(makeConnectionLive(ws)),
+        const program = Effect.gen(function* () {
+          const con = yield* Connection;
+
+          yield* manager.register(id, con);
+          yield* Effect.addFinalizer(() => manager.unregister(id));
+
+          yield* Stream.fromQueue(con.inbox).pipe(
+            Stream.runForEach((msg) =>
+              Effect.gen(function* () {
+                yield* Effect.log(`Data arrived: ${msg}`);
+                yield* manager.broadcast(msg, id);
+              }),
+            ),
+            Effect.forkScoped,
+          );
+        }).pipe(
+          Effect.annotateLogs("connectionId", id),
+          Effect.scoped,
+          Effect.provide(makeConnectionLive(ws)),
+        );
+
+        const fiber = Effect.runFork(program);
+
+        ws.once("close", () => {
+          fiber.interruptUnsafe();
+        });
+      };
+
+      wss.on("connection", connectionHandler);
+
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => wss.off("connection", connectionHandler)),
       );
-
-      const fiber = Effect.runFork(program);
-
-      ws.once("close", () => {
-        fiber.interruptUnsafe();
-      });
-    };
-
-    wss.on("connection", connectionHandler);
-
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => wss.off("connection", connectionHandler)),
-    );
-  });
+    }),
+  );
 }
