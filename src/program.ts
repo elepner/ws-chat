@@ -1,39 +1,32 @@
+import { Effect, Layer, ManagedRuntime, Queue } from "effect";
 import { WebSocketServer, WebSocket } from "ws";
 const wss = new WebSocketServer({ port: 8080 });
 
 let counter = 0;
 const connections: Record<string, WebSocket> = {};
 
+function makeConnection(id: string, ws: WebSocket) {
+  return Effect.gen(function* () {
+    yield* Effect.log("Establishing connection...");
+    const msgHandler = (data: string) => {
+      console.log(`Data arrived: ${data}`);
+    };
+    ws.on("message", msgHandler);
+    yield* Effect.addFinalizer(() =>
+      Effect.gen(function* () {
+        yield* Effect.log("Closing connection");
+        yield* Effect.sync(() => ws.off("message", msgHandler));
+      }),
+    );
+    yield* Effect.callback<void>((resume) => {
+      ws.once("close", () => resume(Effect.void));
+    });
+  }).pipe(Effect.scoped, Effect.annotateLogs("connectionId", id));
+}
+
 wss.on("connection", (ws) => {
-  const connectionId = `${counter++}`;
-  connections[connectionId] = ws;
-
-  ws.on("error", console.error);
-
-  ws.on("message", function message(data: string) {
-    console.log(`received ${connectionId}: ${data}`);
-    Object.entries(connections)
-      .filter(([key]) => key !== connectionId)
-      .forEach(([k, v]) => v.send(data));
-  });
-
-  ws.send("something");
-
-  ws.once("close", () => {
-    delete connections[connectionId];
-  });
+  const id = `${counter++}`;
+  runtime.runFork(makeConnection(id, ws));
 });
 
-process.on("SIGINT", () => {
-  console.log("Sig int");
-
-  Object.values(connections).forEach((x) => x.terminate());
-  process.exit(0);
-});
-
-process.on("SIGTERM", () => {
-  console.log(`Sig term need to disconnect ${Object.keys(connections).length}`);
-  Object.values(connections).forEach((x) => x.terminate());
-  wss.close();
-  process.exit(0);
-});
+const runtime = ManagedRuntime.make(Layer.empty);
