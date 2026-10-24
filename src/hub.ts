@@ -1,4 +1,4 @@
-import { Effect, Layer, Queue, Stream } from "effect";
+import { Effect, Layer } from "effect";
 import { WebSocketServer, WebSocket } from "ws";
 
 import { Connection, makeConnectionLive } from "./connection";
@@ -17,17 +17,6 @@ export function makeHub(wss: WebSocketServer) {
           const con = yield* Connection;
 
           yield* manager.register(id, con);
-          yield* Effect.addFinalizer(() => manager.unregister(id));
-
-          yield* Stream.fromQueue(con.inbox).pipe(
-            Stream.runForEach((msg) =>
-              Effect.gen(function* () {
-                yield* Effect.log(`Data arrived: ${msg}`);
-                yield* manager.broadcast(msg, id);
-              }),
-            ),
-            Effect.forkScoped,
-          );
         }).pipe(
           Effect.annotateLogs("connectionId", id),
           Effect.scoped,

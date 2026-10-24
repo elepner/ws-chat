@@ -1,9 +1,21 @@
-import { Context, Effect, HashMap, Layer, Option, Ref } from "effect";
+import {
+  Context,
+  Effect,
+  HashMap,
+  Layer,
+  Option,
+  Ref,
+  Scope,
+  Stream,
+} from "effect";
 
 import { Connection } from "./connection";
 
 export interface ConnectionManager {
-  register: (id: string, connection: Connection) => Effect.Effect<void>;
+  register: (
+    id: string,
+    connection: Connection,
+  ) => Effect.Effect<void, never, Scope.Scope>;
   unregister: (id: string) => Effect.Effect<void>;
   sendTo: (id: string, msg: string) => Effect.Effect<void>;
   broadcast: (msg: string, exclude: string) => Effect.Effect<void>;
@@ -14,9 +26,6 @@ export const ConnectionManager =
 
 export const makeConnectionManager = Effect.gen(function* () {
   const connections = yield* Ref.make(HashMap.empty<string, Connection>());
-
-  const register = (id: string, connection: Connection) =>
-    Ref.update(connections, HashMap.set(id, connection));
 
   const unregister = (id: string) =>
     Ref.update(connections, HashMap.remove(id));
@@ -42,6 +51,20 @@ export const makeConnectionManager = Effect.gen(function* () {
         }),
       ),
     );
+
+  const register = (id: string, connection: Connection) =>
+    Effect.gen(function* () {
+      yield* Ref.update(connections, HashMap.set(id, connection));
+      yield* Effect.addFinalizer(() => unregister(id));
+
+      yield* Stream.fromQueue(connection.inbox).pipe(
+        Stream.runForEach((msg) =>
+          Effect.gen(function* () {
+            yield* broadcast(`New message from ${id}: ${msg}`, id);
+          }),
+        ),
+      );
+    });
 
   return ConnectionManager.of({ register, unregister, sendTo, broadcast });
 });
