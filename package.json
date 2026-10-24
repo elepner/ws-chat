@@ -8,15 +8,18 @@
     "start": "vpx src/program.ts",
     "format": "vp fmt .",
     "format:check": "vp fmt --check .",
-    "prepare": "vp config"
+    "prepare": "vp config",
+    "dev": "vpx --watch src/program.ts"
   },
   "dependencies": {
     "effect": "^4.0.6",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@effect/vitest": "^4.0.6",
     "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.2",
     "typescript": "^5.7.0",
     "vite-plus": "1.4.0",
     "vitest": "5.0.5"
