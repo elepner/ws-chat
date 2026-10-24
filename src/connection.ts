@@ -36,7 +36,7 @@ export function makeConnectionLive(ws: WebSocket) {
 
       return {
         inbox,
-        send: (msg) => Effect.sync(() => Queue.offerUnsafe(inbox, msg)),
+        send: (msg) => Effect.sync(() => Queue.offerUnsafe(outbox, msg)),
       };
     }),
   );
