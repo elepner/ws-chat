@@ -1,7 +1,7 @@
 import { Cause, Context, Effect, Layer, Queue, Stream } from "effect";
-import { WebSocket } from "ws";
+import { RawData, WebSocket } from "ws";
 
-import { InboundMessage, OutboundMessage } from "./common";
+import { InboundMessage, makeInboundMessage, OutboundMessage } from "./common";
 
 export interface Connection {
   inbox: Queue.Dequeue<InboundMessage, Cause.Done>;
@@ -18,8 +18,8 @@ export function makeConnectionLive(ws: WebSocket) {
       const inbox = yield* Queue.unbounded<InboundMessage, Cause.Done>();
       const outbox = yield* Queue.unbounded<OutboundMessage, Cause.Done>();
 
-      const msgHandler = (msg: InboundMessage) => {
-        Queue.offerUnsafe(inbox, msg);
+      const msgHandler = (data: RawData) => {
+        Queue.offerUnsafe(inbox, makeInboundMessage(data.toString()));
       };
       ws.on("message", msgHandler);
 
