@@ -1,4 +1,4 @@
-import { Effect, Layer } from "effect";
+import { Cause, Effect, Exit, Layer } from "effect";
 import { WebSocketServer } from "ws";
 
 import { ConnectionManagerLive } from "./connection-manager";
@@ -6,10 +6,17 @@ import { EventBusLive } from "./event-bus";
 import { makeHub } from "./hub";
 const wss = new WebSocketServer({ port: 8080 });
 
-const AppLive = Layer.merge(ConnectionManagerLive, EventBusLive);
+const AppLive = Layer.provideMerge(ConnectionManagerLive, EventBusLive);
 const HubLive = makeHub(wss).pipe(Layer.provide(AppLive));
 
 const fiber = Effect.runFork(Layer.launch(HubLive));
+
+fiber.addObserver((exit) => {
+  if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
+    console.error(Cause.pretty(exit.cause));
+    process.exit(1);
+  }
+});
 
 ["SIGINT", "SIGTERM"].forEach((signal) => {
   process.on(signal, () => {

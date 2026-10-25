@@ -11,6 +11,7 @@ import {
 
 import { OutboundMessage, SessionId } from "./common";
 import { Connection } from "./connection";
+import { EventPublisher } from "./event-bus";
 
 export interface ConnectionManager {
   register: (
@@ -27,6 +28,7 @@ export const ConnectionManager =
 
 export const makeConnectionManager = Effect.gen(function* () {
   const connections = yield* Ref.make(HashMap.empty<SessionId, Connection>());
+  const eventPublisher = yield* EventPublisher;
 
   const unregister = (id: SessionId) =>
     Ref.update(connections, HashMap.remove(id));
@@ -61,6 +63,11 @@ export const makeConnectionManager = Effect.gen(function* () {
       yield* Stream.fromQueue(connection.inbox).pipe(
         Stream.runForEach((msg) =>
           Effect.gen(function* () {
+            yield* eventPublisher.publish({
+              _tag: "MessageReceived",
+              from: id,
+              message: msg,
+            });
             yield* Effect.log("Message received " + msg);
           }),
         ),
