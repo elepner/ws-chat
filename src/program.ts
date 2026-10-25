@@ -2,10 +2,12 @@ import { Effect, Layer } from "effect";
 import { WebSocketServer } from "ws";
 
 import { ConnectionManagerLive } from "./connection-manager";
+import { EventBusLive } from "./event-bus";
 import { makeHub } from "./hub";
 const wss = new WebSocketServer({ port: 8080 });
 
-const HubLive = makeHub(wss).pipe(Layer.provide(ConnectionManagerLive));
+const AppLive = Layer.merge(ConnectionManagerLive, EventBusLive);
+const HubLive = makeHub(wss).pipe(Layer.provide(AppLive));
 
 const fiber = Effect.runFork(Layer.launch(HubLive));
 

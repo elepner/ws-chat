@@ -25,3 +25,7 @@ export const EventPublisherLive = Layer.effect(
     };
   }),
 );
+
+export const EventBusLive = EventPublisherLive.pipe(
+  Layer.provideMerge(EventPubSubLive),
+);
