@@ -1,6 +1,6 @@
 import { Context, Effect, HashMap, Layer, Ref, Scope, Stream } from "effect";
 
-import { OutboundMessage, SessionId } from "./common";
+import { SessionId } from "./common";
 import { Connection } from "./connection";
 import { EventPublisher } from "./event-bus";
 
