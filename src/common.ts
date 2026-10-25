@@ -1,4 +1,6 @@
-import { Context, Effect, Schema } from "effect";
+import { Context, Effect, PubSub, Schema } from "effect";
+
+import { ChatEvent } from "./events";
 
 export const SessionId = Schema.String.pipe(Schema.brand("SessionId"));
 export type SessionId = Schema.Schema.Type<typeof SessionId>;
