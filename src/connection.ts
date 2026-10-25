@@ -1,9 +1,11 @@
 import { Cause, Context, Effect, Layer, Queue, Stream } from "effect";
 import { WebSocket } from "ws";
 
+import { InboundMessage, OutboundMessage } from "./common";
+
 export interface Connection {
-  inbox: Queue.Dequeue<string, Cause.Done>;
-  send: (data: string) => Effect.Effect<void>;
+  inbox: Queue.Dequeue<InboundMessage, Cause.Done>;
+  send: (data: OutboundMessage) => Effect.Effect<void>;
 }
 
 export const Connection = Context.Service<Connection>("Connection");
@@ -13,10 +15,12 @@ export function makeConnectionLive(ws: WebSocket) {
     Connection,
     Effect.gen(function* () {
       yield* Effect.log("Establishing connection...");
-      const inbox = yield* Queue.unbounded<string, Cause.Done>();
-      const outbox = yield* Queue.unbounded<string, Cause.Done>();
+      const inbox = yield* Queue.unbounded<InboundMessage, Cause.Done>();
+      const outbox = yield* Queue.unbounded<OutboundMessage, Cause.Done>();
 
-      const msgHandler = (msg: string) => Queue.offerUnsafe(inbox, msg);
+      const msgHandler = (msg: InboundMessage) => {
+        Queue.offerUnsafe(inbox, msg);
+      };
       ws.on("message", msgHandler);
 
       yield* Effect.addFinalizer(() =>

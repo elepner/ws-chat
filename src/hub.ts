@@ -1,6 +1,7 @@
 import { Effect, Layer } from "effect";
 import { WebSocketServer, WebSocket } from "ws";
 
+import { makeSessionId } from "./common";
 import { Connection, makeConnectionLive } from "./connection";
 import { ConnectionManager } from "./connection-manager";
 
@@ -11,7 +12,7 @@ export function makeHub(wss: WebSocketServer) {
       let counter = 0;
 
       const connectionHandler = (ws: WebSocket) => {
-        const id = `${counter++}`;
+        const id = makeSessionId(counter++);
 
         const program = Effect.gen(function* () {
           const con = yield* Connection;

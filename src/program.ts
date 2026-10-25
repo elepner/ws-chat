@@ -15,3 +15,23 @@ const fiber = Effect.runFork(Layer.launch(HubLive));
     fiber.interruptUnsafe();
   });
 });
+
+// const inputMessages = new Subject<string>();
+
+// inputMessages
+//   .pipe(
+//     exhaustMap((msg) => {
+//       return inputMessages.pipe(
+//         map(() => "only 1 msg each 5s"),
+//         startWith(msg),
+//         takeUntil(timer(5000)),
+//       );
+//     }),
+//   )
+//   .subscribe((obj) => {
+//     console.log("Arrived message: ", obj);
+//   });
+
+// interval(1000).subscribe((i) => {
+//   inputMessages.next(`Trying to write message ${i}`);
+// });

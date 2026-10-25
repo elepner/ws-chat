@@ -9,28 +9,29 @@ import {
   Stream,
 } from "effect";
 
+import { OutboundMessage, SessionId } from "./common";
 import { Connection } from "./connection";
 
 export interface ConnectionManager {
   register: (
-    id: string,
+    id: SessionId,
     connection: Connection,
   ) => Effect.Effect<void, never, Scope.Scope>;
-  unregister: (id: string) => Effect.Effect<void>;
-  sendTo: (id: string, msg: string) => Effect.Effect<void>;
-  broadcast: (msg: string, exclude: string) => Effect.Effect<void>;
+  unregister: (id: SessionId) => Effect.Effect<void>;
+  sendTo: (id: SessionId, msg: OutboundMessage) => Effect.Effect<void>;
+  broadcast: (msg: OutboundMessage, exclude: SessionId) => Effect.Effect<void>;
 }
 
 export const ConnectionManager =
   Context.Service<ConnectionManager>("ConnectionManager");
 
 export const makeConnectionManager = Effect.gen(function* () {
-  const connections = yield* Ref.make(HashMap.empty<string, Connection>());
+  const connections = yield* Ref.make(HashMap.empty<SessionId, Connection>());
 
-  const unregister = (id: string) =>
+  const unregister = (id: SessionId) =>
     Ref.update(connections, HashMap.remove(id));
 
-  const sendTo = (id: string, msg: string) =>
+  const sendTo = (id: SessionId, msg: OutboundMessage) =>
     Ref.get(connections).pipe(
       Effect.map((map) => HashMap.get(map, id)),
       Effect.flatMap(
@@ -41,7 +42,7 @@ export const makeConnectionManager = Effect.gen(function* () {
       ),
     );
 
-  const broadcast = (msg: string, exclude: string) =>
+  const broadcast = (msg: OutboundMessage, exclude: SessionId) =>
     Ref.get(connections).pipe(
       Effect.map((map) => HashMap.remove(map, exclude)),
       Effect.flatMap((map) =>
@@ -52,7 +53,7 @@ export const makeConnectionManager = Effect.gen(function* () {
       ),
     );
 
-  const register = (id: string, connection: Connection) =>
+  const register = (id: SessionId, connection: Connection) =>
     Effect.gen(function* () {
       yield* Ref.update(connections, HashMap.set(id, connection));
       yield* Effect.addFinalizer(() => unregister(id));
@@ -60,7 +61,7 @@ export const makeConnectionManager = Effect.gen(function* () {
       yield* Stream.fromQueue(connection.inbox).pipe(
         Stream.runForEach((msg) =>
           Effect.gen(function* () {
-            yield* broadcast(`New message from ${id}: ${msg}`, id);
+            yield* Effect.log("Message received " + msg);
           }),
         ),
       );
