@@ -39,6 +39,7 @@ export const makeConnectionManager = Effect.gen(function* () {
         _tag: "UserConnected",
         id,
       });
+
       yield* Stream.fromQueue(connection.inbox).pipe(
         Stream.runForEach((msg) =>
           Effect.gen(function* () {

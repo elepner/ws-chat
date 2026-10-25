@@ -1,4 +1,4 @@
-import { Cause, Context, Effect, Layer, Queue, Stream } from "effect";
+import { Cause, Context, Effect, Layer, Queue, Scope, Stream } from "effect";
 import { RawData, WebSocket } from "ws";
 
 import { InboundMessage, makeInboundMessage, OutboundMessage } from "./common";
@@ -6,6 +6,7 @@ import { InboundMessage, makeInboundMessage, OutboundMessage } from "./common";
 export interface Connection {
   inbox: Queue.Dequeue<InboundMessage, Cause.Done>;
   send: (data: OutboundMessage) => Effect.Effect<void>;
+  scope: Scope.Scope;
 }
 
 export const Connection = Context.Service<Connection>("Connection");
@@ -15,6 +16,7 @@ export function makeConnectionLive(ws: WebSocket) {
     Connection,
     Effect.gen(function* () {
       yield* Effect.log("Establishing connection...");
+      const scope = yield* Effect.scope;
       const inbox = yield* Queue.unbounded<InboundMessage, Cause.Done>();
       const outbox = yield* Queue.unbounded<OutboundMessage, Cause.Done>();
 
@@ -40,6 +42,7 @@ export function makeConnectionLive(ws: WebSocket) {
 
       return {
         inbox,
+        scope,
         send: (msg) => Effect.sync(() => Queue.offerUnsafe(outbox, msg)),
       };
     }),
