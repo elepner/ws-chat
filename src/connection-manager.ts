@@ -48,7 +48,6 @@ export const makeConnectionManager = Effect.gen(function* () {
               from: id,
               message: msg,
             });
-            yield* Effect.log("Message received " + msg);
           }),
         ),
       );
