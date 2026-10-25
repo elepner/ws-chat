@@ -5,15 +5,9 @@ import { ConnectionManager } from "./connection-manager";
 
 export function sendTo(message: OutboundMessage, to: SessionId) {
   return Effect.gen(function* () {
-    const manager = yield* ConnectionManager;
-    yield* manager.connections.pipe(
-      Effect.map((map) => HashMap.get(map, to)),
-      Effect.flatMap(
-        Option.match({
-          onNone: () => Effect.void,
-          onSome: (con) => con.send(message),
-        }),
-      ),
+    yield* findConnection(to).pipe(
+      Effect.flatMap((con) => con.send(message)),
+      Effect.catchTag("NoSuchConnection", () => Effect.void),
     );
   });
 }
