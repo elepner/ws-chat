@@ -8,6 +8,7 @@ import { makeHub } from "./hub";
 const wss = new WebSocketServer({ port: 8080 });
 
 const AppLive = Layer.provideMerge(ConnectionManagerLive, EventBusLive);
+
 const HubLive = Layer.merge(makeHub(wss), EventRouterLive).pipe(
   Layer.provide(AppLive),
 );

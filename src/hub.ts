@@ -1,4 +1,4 @@
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Queue, Stream } from "effect";
 import { WebSocketServer, WebSocket } from "ws";
 
 import { makeSessionId } from "./common";
@@ -6,36 +6,45 @@ import { Connection, makeConnectionLive } from "./connection";
 import { ConnectionManager } from "./connection-manager";
 
 export function makeHub(wss: WebSocketServer) {
-  return Layer.effectDiscard(
-    Effect.gen(function* () {
-      const manager = yield* ConnectionManager;
-      let counter = 0;
+  const layerEffect = Effect.gen(function* () {
+    let counter = 0;
+    const connectionManager = yield* ConnectionManager;
 
-      const connectionHandler = (ws: WebSocket) => {
-        const id = makeSessionId(counter++);
+    const connectionsStream = Stream.callback<WebSocket>(
+      Effect.fn(function* (queue) {
+        const onConnection = (con: WebSocket) => Queue.offerUnsafe(queue, con);
 
-        const program = Effect.gen(function* () {
-          const con = yield* Connection;
-
-          yield* manager.register(id, con);
-        }).pipe(
-          Effect.annotateLogs("connectionId", id),
-          Effect.scoped,
-          Effect.provide(makeConnectionLive(ws)),
+        yield* Effect.acquireRelease(
+          Effect.sync(() => wss.on("connection", onConnection)),
+          () => Effect.sync(() => wss.off("connection", onConnection)),
         );
+      }),
+    );
 
-        const fiber = Effect.runFork(program);
+    yield* connectionsStream.pipe(
+      Stream.runForEach((ws) =>
+        Effect.gen(function* () {
+          const connectionLayer = makeConnectionLive(ws);
+          const id = makeSessionId(counter++);
+          const program = Effect.gen(function* () {
+            const connection = yield* Connection;
+            yield* connectionManager.register(id, connection);
+          }).pipe(
+            Effect.annotateLogs("connectionId", id),
+            Effect.provide(connectionLayer),
+            Effect.scoped,
+          );
 
-        ws.once("close", () => {
-          fiber.interruptUnsafe();
-        });
-      };
+          const fiber = yield* Effect.forkChild(program);
 
-      wss.on("connection", connectionHandler);
+          ws.once("close", () => {
+            fiber.interruptUnsafe();
+          });
+        }),
+      ),
+      Effect.forkScoped,
+    );
+  });
 
-      yield* Effect.addFinalizer(() =>
-        Effect.sync(() => wss.off("connection", connectionHandler)),
-      );
-    }),
-  );
+  return Layer.effectDiscard(layerEffect);
 }
